@@ -36,7 +36,7 @@ def scatter_inner(
   Returns:
     (T, c) updated target tensor
   """
-  updated_target = target.at[timestep].set(data)
+  updated_target = target.at[timestep].set(data)  # pyrefly: ignore[missing-attribute]
   return jnp.where(mask, updated_target, target)
 
 

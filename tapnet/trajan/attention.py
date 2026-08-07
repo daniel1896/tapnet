@@ -45,7 +45,7 @@ class ImprovedTransformer(nn.Module):
   ):  # -> float['... d2']
 
     for i in range(self.num_layers):
-      if qk_mask is not None and len(qk_mask.shape) == len(inputs_kv.shape):
+      if qk_mask is not None and len(qk_mask.shape) == len(inputs_kv.shape):  # pyrefly: ignore[missing-attribute]
         qk_mask = qk_mask[..., jnp.newaxis, :, :]
       if qq_mask is not None and len(qq_mask.shape) == len(queries.shape):
         qq_mask = qq_mask[..., jnp.newaxis, :, :]

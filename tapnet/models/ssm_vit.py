@@ -60,7 +60,7 @@ def get_posemb(self, typ, seqshape, width, name, dtype=jnp.float32):
         dtype,
     )
   elif typ == "sincos2d":
-    return posemb_sincos_2d(*seqshape, width, dtype=dtype)
+    return posemb_sincos_2d(*seqshape, width, dtype=dtype)  # pyrefly: ignore[bad-keyword-argument]
   else:
     raise ValueError(f"Unknown posemb type: {typ}")
 
@@ -169,7 +169,7 @@ class ViTSSMBlock(nn.Module):
       ssm_block = recurrentgemma_modules.ResidualBlock(
           name="ssm_block",
           width=self.width * 2 if self.bidirectional_ssm else self.width,
-          mlp_expanded_width=self.mlp_dim,
+          mlp_expanded_width=self.mlp_dim,  # pyrefly: ignore[bad-argument-type]
           num_heads=self.num_heads,
           lru_width=self.lru_width,
           attention_window_size=self.attention_window_size,
@@ -188,7 +188,7 @@ class ViTSSMBlock(nn.Module):
           num_kv_heads=self.num_heads,
           embed_dim=self.width,
           head_dim=self.width // self.num_heads,
-          hidden_dim=self.mlp_dim,
+          hidden_dim=self.mlp_dim,  # pyrefly: ignore[bad-argument-type]
           use_post_attn_norm=False,
           use_post_ffw_norm=False,
           sliding_window_size=self.attention_window_size,
@@ -212,10 +212,10 @@ class ViTSSMBlock(nn.Module):
       if self.attention_ablation:
         assert isinstance(temporal_block, gemma_modules.Block)
         attn_mask = jnp.ones((x.shape[0], t, t), dtype=jnp.bool_)
-        _, x = temporal_block(x, pos, attn_mask=attn_mask, cache=None)
+        _, x = temporal_block(x, pos, attn_mask=attn_mask, cache=None)  # pyrefly: ignore[bad-argument-type]
       else:
         assert isinstance(temporal_block, recurrentgemma_modules.ResidualBlock)
-        x, outs["ssm_block_cache"] = temporal_block(x, pos, cache)
+        x, outs["ssm_block_cache"] = temporal_block(x, pos, cache)  # pyrefly: ignore[no-matching-overload]
     # x shape [b * (h * w + q), t, c]
     x = ssm_utils.unflatten_untranspose(x, shape, "(b t) n c")
     # x shape [b * t, h * w + q, c]
@@ -518,7 +518,7 @@ class MaskedSequenceDecoder(nn.Module):
         E=pixel_w * self.query_scale,
     )
     query_timesteps, query_positions = (
-        query_points[..., :1], query_points[..., 1:])
+        query_points[..., :1], query_points[..., 1:])  # pyrefly: ignore[bad-index]
     # mode="nearest" is the boundary strategy for interpolation.
     interp_fn = functools.partial(model_utils.interp, mode="nearest")
     # signature of interp_fn: [h w], [q 2] -> [q]
@@ -693,7 +693,7 @@ class MaskedSequenceDecoder(nn.Module):
     """Model forward pass used for per-frame processing."""
 
     if query_points is not None:
-      x, _, out = self(video, query_points, query_padding)
+      x, _, out = self(video, query_points, query_padding)  # pyrefly: ignore[bad-argument-type]
       state = TAPNextTrackingState(
           hidden_state=out["encoder"]["ssm_block_cache"],
           step=x.shape[1],
@@ -735,14 +735,14 @@ class MaskedSequenceDecoder(nn.Module):
     # we allow them to become negative sometimes because this is handled in
     # embed_queries_and_hints
     query_points = jnp.concatenate([
-        query_points[..., :1] - state.step,
-        query_points[..., 1:],
+        query_points[..., :1] - state.step,  # pyrefly: ignore[bad-index]
+        query_points[..., 1:],  # pyrefly: ignore[bad-index]
     ], axis=-1)
     if len(query_points.shape) == 3:
       query_points = query_points[..., None, :]
     if query_padding is not None:
       if len(query_padding.shape) == 2:
-        query_padding = query_padding[..., None]
+        query_padding = query_padding[..., None]  # pyrefly: ignore[bad-index]
     else:
       query_padding = jnp.ones(query_points.shape[:-1], dtype=jnp.bool_)
     temporal_query_tokens = self.embed_queries_and_hints(

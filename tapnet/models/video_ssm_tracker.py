@@ -36,15 +36,15 @@ class TrackerResults:
   """Container for TAPNext results."""
 
   # Estimated point tracks trajectories over the video.
-  tracks: jaxtyping.Float["*B Q T 2"]
-  track_logits: jaxtyping.Float["*B Q T 512"]
+  tracks: jaxtyping.Float["*B Q T 2"]  # pyrefly: ignore[invalid-annotation, not-a-type]
+  track_logits: jaxtyping.Float["*B Q T 512"]  # pyrefly: ignore[invalid-annotation, not-a-type]
   # Raw visibility predictions in (-inf, inf), i.e. pre-sigmoid.
-  visible_logits: jaxtyping.Float["*B Q T 1"]
+  visible_logits: jaxtyping.Float["*B Q T 1"]  # pyrefly: ignore[invalid-annotation, not-a-type]
   # Estimated point tracks trajectories, intermediately.
-  intermediate_tracks: Sequence[jaxtyping.Float["*B Q T 2"]]
-  intermediate_track_logits: Sequence[jaxtyping.Float["*B Q T 512"]]
+  intermediate_tracks: Sequence[jaxtyping.Float["*B Q T 2"]]  # pyrefly: ignore[bad-specialization]
+  intermediate_track_logits: Sequence[jaxtyping.Float["*B Q T 512"]]  # pyrefly: ignore[bad-specialization]
   # Raw visibility predictions in (-inf, inf), intermediately.
-  intermediate_visible_logits: Sequence[jaxtyping.Float["*B Q T 1"]]
+  intermediate_visible_logits: Sequence[jaxtyping.Float["*B Q T 1"]]  # pyrefly: ignore[bad-specialization]
   state: Optional[Any] = None
 
   # Hard predictions in {0, 1}.
@@ -166,9 +166,9 @@ class TAPNextTracker(nn.Module):
     if query_padding is None:
       query_padding = jnp.ones(query_points.shape[:-1], dtype=jnp.bool_)
     if len(query_points.shape) == 3:
-      query_points = query_points[..., None, :]
+      query_points = query_points[..., None, :]  # pyrefly: ignore[bad-index]
     if len(query_padding.shape) == 2:
-      query_padding = query_padding[..., None]
+      query_padding = query_padding[..., None]  # pyrefly: ignore[bad-index]
     query_padding = query_padding.astype(jnp.float32)
     if self.backbone.dtype_ssm == "bfloat16":
       video = video.astype(jnp.bfloat16)
@@ -257,7 +257,7 @@ class TAPNextTracker(nn.Module):
               hidden_state=track_results.state,
               step=frames.shape[1],
               query_points=query_points,
-              query_padding=query_padding,
+              query_padding=query_padding,  # pyrefly: ignore[bad-argument-type]
           ),
       )
     x, new_state = self.backbone.forward_step(frames, state=state)

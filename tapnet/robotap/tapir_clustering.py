@@ -420,12 +420,12 @@ def update(
       state.params, state.state, rng, data
   )
 
-  updates, new_opt_state = optimiser.update(gradients, state.opt_state)
+  updates, new_opt_state = optimiser.update(gradients, state.opt_state)  # pyrefly: ignore[missing-attribute]
   updates = jax.tree_util.tree_map(lambda x: x * lr_mul, updates)
   new_params = optax.apply_updates(state.params, updates)
 
   new_state = TrainingState(
-      params=new_params,
+      params=new_params,  # pyrefly: ignore[bad-argument-type]
       state=new_state,
       opt_state=new_opt_state,
       rng=new_rng,
@@ -487,7 +487,7 @@ def init(rng, data, num_cats=1, sequence_boundaries=tuple(), optimiser=None):
   initial_params, initial_state = loss_fn.init(
       init_rng, data, num_cats=num_cats, sequence_boundaries=sequence_boundaries
   )
-  initial_opt_state = optimiser.init(initial_params)
+  initial_opt_state = optimiser.init(initial_params)  # pyrefly: ignore[missing-attribute]
   return TrainingState(
       params=initial_params,
       state=initial_state,
@@ -751,7 +751,7 @@ def compute_clusters(
       lr_mul = lr_mul / 2.0
     if state.step > num_iters * 0.75:
       lr_mul = lr_mul / 2.0
-    state, metrics = update_jit(state, data + (state.step,), lr_mul)
+    state, metrics = update_jit(state, data + (state.step,), lr_mul)  # pyrefly: ignore[unbound-name]
     loss_curve.append(metrics['loss'])
     loss_moving_average = 0.9 * loss_moving_average + 0.1 * metrics['losses']
 

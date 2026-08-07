@@ -103,7 +103,7 @@ class TokenSubsampling(nn.Module):
       n_tokens = int(seq_len) - 1
     else:
       n_tokens = int(num_tokens)
-    if len(n_batch) != 1:
+    if len(n_batch) != 1:  # pyrefly: ignore[bad-argument-type]
       raise NotImplementedError("*B is not supported yet!")
     rng = self.make_rng("degradation")
     num_vis_patches = tokens.shape[2]
@@ -126,7 +126,7 @@ class TokenSubsampling(nn.Module):
     # embeddings (i.e. at all temporal positions masked tokens are the same).
     # when we have positional embeddings, we need dynamically choose
     # the mask token for each position according to `subsample_size`.
-    scatter_data = mask_token[:, 0]
+    scatter_data = mask_token[:, 0]  # pyrefly: ignore[bad-index]
     # scatter_data.shape == [B, N, D]
     masked_tokens = index_utils.scatter_suffix(
         masked_tokens, mask, indices, scatter_data
