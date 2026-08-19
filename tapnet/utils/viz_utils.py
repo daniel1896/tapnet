@@ -44,6 +44,15 @@ def get_colors(num_colors: int) -> List[Tuple[int, int, int]]:
   return colors
 
 
+def _get_colormap(name: str = 'hsv'):
+  """Gets a colormap by name in a way compatible across matplotlib versions."""
+  if hasattr(matplotlib, 'colormaps'):
+    return matplotlib.colormaps[name]
+  if hasattr(matplotlib, 'cm') and hasattr(matplotlib.cm, 'get_cmap'):
+    return matplotlib.cm.get_cmap(name)
+  return plt.get_cmap(name)
+
+
 def paint_point_track(
     frames: np.ndarray,
     point_tracks: np.ndarray,
@@ -132,6 +141,7 @@ def plot_tracks_v2(
     gt_occluded: Optional[np.ndarray] = None,
     trackgroup: Optional[np.ndarray] = None,
     point_size: int = 20,
+    point_color: Optional[np.ndarray] = None,
 ) -> np.ndarray:
   """Plot tracks with matplotlib.
 
@@ -156,21 +166,35 @@ def plot_tracks_v2(
       the same color.  Useful for clustering applications.
     point_size: int, the size of the plotted points, passed as the 's' parameter
       to matplotlib.
+    point_color: Optional point colors of shape [num_points, 3] or
+      [num_points, 4] (RGB or RGBA), float or uint8. If provided, overrides
+      the colormap.
 
   Returns:
     video: [num_frames, height, width, 3], np.uint8, [0, 255]
   """
   disp = []
-  cmap = plt.cm.hsv  # pytype: disable=module-attr
+  cmap = _get_colormap('hsv')
 
-  z_list = (
-      np.arange(points.shape[0]) if trackgroup is None else np.array(trackgroup)
-  )
+  if point_color is not None:
+    colors = np.array(point_color, dtype=np.float32)
+    if np.max(colors) > 1.0:
+      colors = colors / 255.0
+    if colors.shape[-1] == 3:
+      colors = np.concatenate(
+          [colors, np.ones((colors.shape[0], 1), dtype=np.float32)], axis=-1
+      )
+  else:
+    z_list = (
+        np.arange(points.shape[0])
+        if trackgroup is None
+        else np.array(trackgroup)
+    )
 
-  # random permutation of the colors so nearby points in the list can get
-  # different colors
-  z_list = np.random.permutation(np.max(z_list) + 1)[z_list]
-  colors = cmap(z_list / (np.max(z_list) + 1))
+    # random permutation of the colors so nearby points in the list can get
+    # different colors
+    z_list = np.random.permutation(np.max(z_list) + 1)[z_list]
+    colors = cmap(z_list / (np.max(z_list) + 1))
   figure_dpi = 64
 
   for i in range(rgb.shape[0]):
@@ -673,7 +697,7 @@ def plot_tracks_tails(
     frames: rgb frames with rendered rainbow tracks.
   """
   disp = []
-  cmap = plt.cm.hsv  # pytype: disable=module-attr
+  cmap = _get_colormap('hsv')
 
   z_list = np.arange(points.shape[0])
 
