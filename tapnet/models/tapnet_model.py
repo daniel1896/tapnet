@@ -265,7 +265,7 @@ class TAPNet(hk.Module):
 
       for i in range(0, query_points.shape[1], query_chunk_size):
         points, occlusion = infer(
-            interp_features_heads[:, i:i + query_chunk_size],
+            interp_features_heads[:, i:i + query_chunk_size],  # pyrefly: ignore[bad-index]
             feature_grid_heads,
             query_points[:, i:i + query_chunk_size],  # pyrefly: ignore[bad-index]
         )
