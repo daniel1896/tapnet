@@ -34,17 +34,31 @@ FP8 tensors on Transpose nodes, which only TensorRT accepts).
 
 Calibration data is large (about 60 MB per sample at 256 px / 64 queries,
 because the recurrent state is part of the input).
+
+Only the `Gemm` nodes (every `F.linear` of the step model) are quantized by
+default. That is what `eval_davis.py --fp8_sim` simulates. Quantizing the
+remaining MatMuls as well puts FP8 Q/DQ on the residual stream and on the
+RG-LRU gate inputs, whose per-tensor ranges reach 7e4, and destroys the model.
+
+ModelOpt is run on a single-file copy of the graph: its
+`--use_external_data_format` round trip silently corrupts a few initializers
+(measured with ModelOpt 0.47.0: 3 of 438 bias tensors, errors up to 5e4).
+`_check_weights_survived` fails loudly if that happens anyway.
 """
 
 import argparse
+import pathlib
 import subprocess
 import sys
 
 import numpy as np
 import onnx
+from onnx import numpy_helper
 from tapnet.tapnextpp.deploy import eval_davis
 from tapnet.tapnextpp.deploy import step_model
 import torch
+
+_PROTOBUF_LIMIT = 2 * 1024**3
 
 
 def calibration_data(args, resolution, num_queries):
@@ -86,6 +100,44 @@ def calibration_data(args, resolution, num_queries):
   return {k: np.concatenate(v, axis=0) for k, v in samples.items()}
 
 
+def _needs_external_data(onnx_path):
+  """True if the model is too large to be written as a single ONNX file."""
+  model = onnx.load(onnx_path, load_external_data=False)
+  size = pathlib.Path(onnx_path).stat().st_size
+  for tensor in model.graph.initializer:
+    for entry in tensor.external_data:
+      if entry.key == 'location':
+        data = pathlib.Path(onnx_path).parent / entry.value
+        if data.exists():
+          size += data.stat().st_size
+        break
+  if size >= _PROTOBUF_LIMIT:
+    print(f'{onnx_path} is {size / 2**30:.1f} GiB: ModelOpt has to write it '
+          'with external data, which may corrupt initializers.')
+    return True
+  return False
+
+
+def _check_weights_survived(source_path, output_path):
+  """Fails if ModelOpt changed an initializer it was supposed to pass through."""
+  source = {t.name: t for t in onnx.load(source_path).graph.initializer}
+  corrupted = []
+  for t in onnx.load(output_path).graph.initializer:
+    original = source.get(t.name)
+    if original is None or original.data_type != t.data_type:
+      continue  # Added (scales) or deliberately re-typed (FP8 weights).
+    a = np.ascontiguousarray(numpy_helper.to_array(original))
+    b = np.ascontiguousarray(numpy_helper.to_array(t))
+    if a.shape != b.shape or a.tobytes() != b.tobytes():
+      corrupted.append(t.name)
+  if corrupted:
+    raise RuntimeError(
+        f'{len(corrupted)} initializers differ from {source_path} although '
+        f'they were not quantized, e.g. {corrupted[:5]}. The graph is '
+        'unusable; see the note on --use_external_data_format above.')
+  print(f'Weights of {output_path} match {source_path}.')
+
+
 def main():
   parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
   parser.add_argument('--checkpoint', required=True)
@@ -98,6 +150,18 @@ def main():
                       choices=['max', 'entropy'])
   parser.add_argument('--calibration_eps', default='cpu',
                       help="e.g. 'cuda:0 cpu' or 'trt cuda:0 cpu'.")
+  parser.add_argument(
+      '--op_types_to_quantize', default='Gemm',
+      help='Space separated ONNX op types. The default quantizes the step '
+      "model's linear layers and nothing else.")
+  parser.add_argument(
+      '--nodes_to_exclude', default='',
+      help='Space separated node-name regexes to keep in high precision, '
+      'e.g. the gated-MLP down projections "^node_linear_(4|13|22)$".')
+  parser.add_argument('--high_precision_dtype', default='fp32',
+                      choices=['fp32', 'fp16', 'bf16'],
+                      help='Precision of the unquantized part. fp16 overflows '
+                      "the step model's fp32 residual stream.")
   parser.add_argument('--device', default='cuda' if torch.cuda.is_available()
                       else 'cpu')
   args = parser.parse_args()
@@ -131,12 +195,17 @@ def main():
       '--calibration_method', args.calibration_method,
       '--calibration_data_path', calib_path,
       '--calibration_eps', *args.calibration_eps.split(),
-      '--high_precision_dtype', 'fp16',
-      '--use_external_data_format',
+      '--high_precision_dtype', args.high_precision_dtype,
+      '--op_types_to_quantize', *args.op_types_to_quantize.split(),
       '--output_path', args.output,
   ]
+  if args.nodes_to_exclude:
+    cmd += ['--nodes_to_exclude', *args.nodes_to_exclude.split()]
+  if _needs_external_data(args.onnx):
+    cmd.append('--use_external_data_format')
   print('$', ' '.join(cmd), flush=True)
   subprocess.run(cmd, check=True)
+  _check_weights_survived(args.onnx, args.output)
 
 
 if __name__ == '__main__':
