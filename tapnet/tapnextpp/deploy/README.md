@@ -94,6 +94,26 @@ python -m tapnet.tapnextpp.deploy.benchmark --checkpoint tapnextpp_ckpt.pt \
 On Windows, `torch.compile` needs Triton. The `*_compile*` modes may fail
 there; `step_graph` and `trt` do not use it.
 
+## Accuracy of the speed levers (TAP-Vid DAVIS, measured on CPU)
+
+Query-first, all points of a video tracked jointly online, `tapnextpp_ckpt.pt`,
+all 30 videos (`eval_davis.py`):
+
+| Variant | AJ | delta_avg | OA | AJ change |
+|---------|---:|----------:|---:|----------:|
+| 256x256 fp32 (reference, matches the paper's 66.6 / 79.9 / 92.1) | 66.59 | 79.94 | 92.12 | - |
+| 256x256, linear layers in FP8 E4M3 (per-tensor, simulated) | 66.31 | 79.74 | 91.86 | -0.28 |
+| 256x256, padded to 64 fixed query slots ("unknown" tokens) | 66.60 | 79.91 | 92.11 | +0.01 |
+| 224x224 input (25 videos; reference on the same 25: 67.05) | 43.01 | 58.32 | 86.40 | -24.0 |
+
+* FP8 is close to free in accuracy and roughly doubles tensor-core peak, so it
+  is the main lever towards 60 fps. `quantize_fp8.py` produces the ModelOpt
+  FP8 graph; verify the built engine with `eval_davis.py --engine`.
+* Fixed-size engines are fine: unused slots on the "unknown" token do not
+  change the results.
+* Lower input resolution is not usable without fine-tuning. The model was
+  only trained at 256 (and 512 for the 512 checkpoint).
+
 ## What to expect: compute budget
 
 TAPNext-B processes every 8x8 patch as a token through 12 ViT + 12 SSM
