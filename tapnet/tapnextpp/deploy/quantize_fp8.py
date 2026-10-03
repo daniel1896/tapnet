@@ -119,6 +119,10 @@ def main():
   calib_path = args.output.removesuffix('.onnx') + '.calib.npz'
   np.savez(calib_path, **data)
   print(f'Wrote {calib_path} ({data["frame"].shape[0]} samples)')
+  # ModelOpt calibrates in a child process on the same GPU; hand the VRAM that
+  # the caching allocator still holds from calibration_data() back to it.
+  if torch.cuda.is_available():
+    torch.cuda.empty_cache()
 
   cmd = [
       sys.executable, '-m', 'modelopt.onnx.quantization',
