@@ -7,8 +7,11 @@ local NVIDIA GPU.
 |------|---------|
 | `step_model.py` | `TAPNextStep`: one online step as a pure tensor function (same weights, same math). `PointTokenizer`: builds query tokens without the full model. |
 | `export_onnx.py` | Exports `TAPNextStep` to ONNX (fp16 or fp32) and verifies it against the reference `TAPNext.forward` with onnxruntime. |
-| `trt_runner.py` | Minimal TensorRT 10/11 runtime wrapper with on-GPU ping-pong state. |
+| `trt_runner.py` | Minimal TensorRT 10/11 runtime wrapper with on-GPU ping-pong state, and `build_engine` (Python API, no `trtexec` needed). |
 | `benchmark.py` | GPU latency/FPS of the reference model, the step model (eager, CUDA graph, `torch.compile`) and a TensorRT engine, plus deviation from fp32. |
+| `eval_davis.py` | TAP-Vid DAVIS accuracy of any variant: PyTorch fp32/fp16, other input resolutions, simulated FP8, padded query slots, an ONNX graph or a TensorRT engine. |
+| `quantize_fp8.py` | FP8 post-training quantization with NVIDIA ModelOpt, calibrated on real frames plus the recurrent state the model has at that point. |
+| `optimize_local.py` | One command for the target machine: export, build, benchmark and evaluate a grid of resolutions and query counts, then write `report.md`. |
 
 ## Why a separate step model?
 
@@ -51,6 +54,18 @@ LayerNormalization, Softmax, ArgMax, Erf, Tanh, Conv, ...). Its weights are
 run on hardware when this was written.
 
 ## Run it on the target machine
+
+The quickest path is the sweep, which downloads the checkpoint and DAVIS,
+builds one TensorRT engine per configuration and writes `report.md` with fps
+and DAVIS accuracy side by side:
+
+```bash
+pip install -e ".[torch]" onnx onnxscript onnxruntime tensorrt mediapy scipy absl-py
+python -m tapnet.tapnextpp.deploy.optimize_local --workdir tapnextpp_opt \
+    --resolutions 256,224,192 --queries 64,256
+```
+
+The individual steps:
 
 ```bash
 pip install -e ".[torch]" onnx onnxscript onnxruntime   # from a checkout of this repo

@@ -34,6 +34,7 @@ video.
 """
 
 import argparse
+import json
 import subprocess
 import time
 
@@ -220,6 +221,8 @@ def main():
       '--fp16_accumulation', action='store_true',
       help='Allow fp16 accumulation in cuBLAS (2x tensor-core peak on '
       'GeForce, lower precision). Affects the PyTorch modes only.')
+  parser.add_argument('--json_out', default=None,
+                      help='Also write {mode: results} to this JSON file.')
   args = parser.parse_args()
   if args.check_frames > args.warmup + args.frames:
     parser.error('--check_frames must not exceed --warmup + --frames.')
@@ -250,16 +253,23 @@ def main():
   }
   print(f'\n{"mode":<20}{"mean ms":>9}{"p50 ms":>9}{"p95 ms":>9}{"FPS":>8}'
         f'{"max dev px":>12}{"mean dev px":>13}')
+  results = {}
   for mode in modes:
     try:
       result = bench.measure(makers[mode]())
     except Exception as e:  # pylint: disable=broad-exception-caught
       print(f'{mode:<20} FAILED: {type(e).__name__}: {str(e)[:200]}')
+      results[mode] = {'error': f'{type(e).__name__}: {str(e)[:500]}'}
       continue
+    results[mode] = {k: float(v) for k, v in result.items()}
     print(f'{mode:<20}{result["mean_ms"]:>9.2f}{result["p50_ms"]:>9.2f}'
           f'{result["p95_ms"]:>9.2f}{result["fps"]:>8.1f}'
           f'{result["max_dev_px"]:>12.3f}{result["mean_dev_px"]:>13.4f}')
     torch.cuda.empty_cache()
+  if args.json_out:
+    with open(args.json_out, 'w') as f:
+      json.dump({'gpu': gpu_info(), 'gflops_per_frame': gflops,
+                 'modes': results}, f, indent=1)
 
 
 if __name__ == '__main__':

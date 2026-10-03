@@ -43,6 +43,47 @@ _TRT_TO_TORCH = {
 }
 
 
+def build_engine(
+    onnx_path: str,
+    plan_path: str,
+    optimization_level: int = 3,
+    workspace_gib: float = 4.0,
+) -> None:
+  """Builds a strongly typed engine (same as `trtexec --stronglyTyped`).
+
+  Needs only the `tensorrt` Python package (pip wheels do not ship trtexec).
+  Build on the GPU that will run the engine.
+
+  Args:
+    onnx_path: ONNX file from export_onnx.py (external weights next to it).
+    plan_path: Where to write the serialized engine.
+    optimization_level: TensorRT builder optimization level (0-5); higher
+      searches more kernels and builds slower.
+    workspace_gib: Builder workspace limit.
+  """
+  logger = trt.Logger(trt.Logger.WARNING)
+  builder = trt.Builder(logger)
+  flags = 0
+  strongly_typed = getattr(
+      trt.NetworkDefinitionCreationFlag, 'STRONGLY_TYPED', None)
+  if strongly_typed is not None:  # Default (and possibly removed) in TRT 11.
+    flags |= 1 << int(strongly_typed)
+  network = builder.create_network(flags)
+  parser = trt.OnnxParser(network, logger)
+  if not parser.parse_from_file(onnx_path):
+    errors = [str(parser.get_error(i)) for i in range(parser.num_errors)]
+    raise RuntimeError(f'ONNX parse failed: {errors}')
+  config = builder.create_builder_config()
+  config.set_memory_pool_limit(
+      trt.MemoryPoolType.WORKSPACE, int(workspace_gib * 2**30))
+  config.builder_optimization_level = optimization_level
+  engine = builder.build_serialized_network(network, config)
+  if engine is None:
+    raise RuntimeError('TensorRT engine build failed (see log above).')
+  with open(plan_path, 'wb') as f:
+    f.write(engine)
+
+
 class TRTStepRunner:
   """Thin wrapper around a TAPNextStep TensorRT engine."""
 

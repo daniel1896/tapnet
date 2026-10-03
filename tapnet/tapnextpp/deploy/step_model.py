@@ -172,14 +172,20 @@ class TAPNextStep(nn.Module):
     return y.transpose(0, 1).reshape(n, -1)
 
   def init_state(
-      self, device: torch.device | str | None = None
+      self,
+      device: torch.device | str | None = None,
+      num_queries: int | None = None,
   ) -> tuple[torch.Tensor, torch.Tensor]:
+    """Zero state; `num_queries` overrides the default for eager PyTorch use."""
+    num_tokens = self.num_image_tokens + (
+        self.num_queries if num_queries is None else num_queries
+    )
     rg_state = torch.zeros(
-        self.num_layers, self.num_tokens, self.width,
+        self.num_layers, num_tokens, self.width,
         dtype=torch.float32, device=device,
     )
     conv_state = torch.zeros(
-        self.num_layers, self.num_tokens, self.conv_width - 1, self.width,
+        self.num_layers, num_tokens, self.conv_width - 1, self.width,
         dtype=self.compute_dtype, device=device,
     )
     return rg_state, conv_state
