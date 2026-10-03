@@ -27,7 +27,13 @@ videos are used; evaluate on the others to avoid calibrating on test data.
 Quantization itself is done by NVIDIA TensorRT Model Optimizer
 (`pip install "nvidia-modelopt[onnx]"`), which inserts FP8 Q/DQ nodes that
 TensorRT turns into FP8 GEMMs. Build the result like any other step graph
-(trt_runner.build_engine / trtexec --stronglyTyped).
+(trt_runner.build_engine / trtexec --stronglyTyped) and check it with
+`eval_davis.py --engine`; onnxruntime cannot run it (ModelOpt places some
+FP8 tensors on Transpose nodes, which only TensorRT accepts).
+`eval_davis.py --fp8_sim` estimates the accuracy cost without a GPU.
+
+Calibration data is large (about 60 MB per sample at 256 px / 64 queries,
+because the recurrent state is part of the input).
 """
 
 import argparse

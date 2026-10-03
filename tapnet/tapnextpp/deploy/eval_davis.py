@@ -35,8 +35,8 @@ Variants:
                    "unknown" tokens, as a fixed-shape engine requires.
   --engine         Runs a TensorRT engine instead of PyTorch (implies padding
                    to the engine's query count; resolution must match).
-  --onnx           Same for an ONNX graph in onnxruntime (e.g. the FP8 Q/DQ
-                   graph from quantize_fp8.py).
+  --onnx           Same for an ONNX graph in onnxruntime. The FP8 graph from
+                   quantize_fp8.py only runs in TensorRT (use --engine).
 """
 
 import argparse
