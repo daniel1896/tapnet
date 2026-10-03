@@ -31,6 +31,7 @@ Requires: torch>=2.6, onnx, onnxscript; onnxruntime for verification.
 """
 
 import argparse
+import sys
 import time
 
 import numpy as np
@@ -67,7 +68,16 @@ def grid_queries(num_queries, start_frame=0):
   return torch.cat([t, yx], -1)[None]
 
 
+def _tolerate_non_utf8_console():
+  """torch.onnx prints status glyphs; a cp1252 console raises on them."""
+  for stream in (sys.stdout, sys.stderr):
+    encoding = getattr(stream, 'encoding', None)
+    if encoding and encoding.lower().replace('-', '') != 'utf8':
+      stream.reconfigure(errors='replace')
+
+
 def main():
+  _tolerate_non_utf8_console()
   parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
   parser.add_argument('--checkpoint', required=True)
   parser.add_argument('--resolution', type=int, default=256)
